@@ -1,0 +1,1 @@
+for dir in 40-rds 30-bastion-server 20-sg 10-vpc; do cd "$dir" && terraform destroy -auto-approve && cd ..;done
