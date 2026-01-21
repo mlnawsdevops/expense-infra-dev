@@ -65,3 +65,29 @@ module "db" {
     },
   ]
 }
+
+
+# creating route53 record for rds endpoint url
+module "zone" {
+  source = "terraform-aws-modules/route53/aws"
+
+  name = var.zone_name
+  create_zone = false   
+
+  records = {
+    mysql-dev = {
+      type            = "CNAME"
+      ttl             = 1
+      records         = [module.db.db_instance_address]
+      allow_overwrite = true
+    }
+  }
+
+  tags = merge(
+    var.common_tags,
+    var.route53_tags,
+    {
+        Name = var.zone_name
+    }
+  )
+}

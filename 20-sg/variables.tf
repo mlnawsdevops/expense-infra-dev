@@ -33,3 +33,15 @@ variable "bastion_sg_tags" {
 variable "ansible_sg_tags" {
     default = {}
 }
+
+variable "app_alb_sg_tags" {
+    default = {
+        Component = "app-alb"
+    }
+}
+
+variable "vpn_sg_tags" {
+    default = {
+        Component = "vpn"
+    }
+}
