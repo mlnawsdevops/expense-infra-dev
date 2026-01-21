@@ -5,7 +5,8 @@
 # 4. stop the instance using resource "aws_ec2_instance_state"
 # 5. take the instance ami using "aws_ami_from_instance"
 # 6. delete the instance using null resource and aws command line arguments and local exec.
-# 7. 
+# 7. create targetgroup
+
 
 module "backend" {
   source  = "terraform-aws-modules/ec2-instance/aws"
@@ -85,3 +86,85 @@ resource "null_resource" "delete_backend" {
   depends_on = [aws_ami_from_instance.backend]
 }
 
+resource "aws_lb_target_group" "backend" {
+  name     = local.resource_name
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = local.vpc_id
+
+  health_check {
+    healthy_threshold = 2 # if 2 request are success then healthy
+    unhealthy_threshold = 2 # Number of consecutive health check failures required before considering the target unhealthy
+    interval = 5 # Approximate amount of time, in seconds, between health checks of an individual target
+    matcher = "200-299" #success response
+    path = "/health"
+    port = 8080 # backend port
+    protocol = "HTTP" # no secure requests
+    timeout = 4 # Amount of time, in seconds, during which no response means a failed health check
+  }
+}
+
+resource "aws_launch_template" "backend" {
+  name = local.resource_name
+  image_id = aws_ami_from_instance.backend.id
+  instance_initiated_shutdown_behavior = "terminate" # when instance is shutdown it will go to terminate not stop
+  update_default_version = true
+  instance_type = "t3.micro"
+  vpc_security_group_ids = [local.backend_sg_id]
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = local.resource_name
+    }
+  }
+}
+
+resource "aws_autoscaling_group" "backend" {
+  name = "${local.resource_name}-asg"
+  max_size = 10
+  min_size = 2
+  health_check_grace_period = 60
+  health_check_type = "ELB"
+  desired_capacity = 2 # starting of the auto scaling group
+  
+  launch_template {
+    id = aws_launch_template.backend.id
+    version = "$Latest"
+  }
+
+  vpc_zone_identifier = [local.private_subnet_id]
+
+  tag {
+    key = "name"
+    value = local.resource_name
+    propagate_at_launch = true
+  }
+
+  # if instances are not healthy within 15min, autoscaling will that delete autoscaling
+  timeouts {
+    delete = "15m"
+  }
+
+  tag {
+    key = "Project"
+    value = "expense"
+    propagate_at_launch = false
+  }
+}
+
+
+resource "aws_autoscaling_policy" "backend" {
+  name  = local.resource_name
+  autoscaling_group_name = aws_autoscaling_group.backend.name
+  policy_type            = "TargetTrackingScaling"
+
+  target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ASGAverageCPUUtilization"
+    }
+
+    target_value = 70.0
+  }
+}
