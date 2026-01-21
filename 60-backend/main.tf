@@ -1,5 +1,12 @@
-# session-37
-# create ec2 instance for backend
+## session-37
+# 1. create ec2-instance for backend
+# 2. configure the instance using ansible 
+# 3. null resource and connect instance using remote provisioners and file provisioners.
+# 4. stop the instance using resource "aws_ec2_instance_state"
+# 5. take the instance ami using "aws_ami_from_instance"
+# 6. delete the instance using null resource and aws command line arguments and local exec.
+# 7. 
+
 module "backend" {
   source  = "terraform-aws-modules/ec2-instance/aws"
   ami = local.ami_id
