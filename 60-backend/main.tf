@@ -6,6 +6,10 @@
 # 5. take the instance ami using "aws_ami_from_instance"
 # 6. delete the instance using null resource and aws command line arguments and local exec.
 # 7. create targetgroup
+# 8. create launch template
+# 9. create autoscalinggroup
+# 10. create autoscalinggroup policy
+# 11. create lb listener rule
 
 
 module "backend" {
@@ -88,7 +92,7 @@ resource "null_resource" "delete_backend" {
 
 resource "aws_lb_target_group" "backend" {
   name     = local.resource_name
-  port     = 8080
+  port     = 8080 # backend netstat open port 8080
   protocol = "HTTP"
   vpc_id   = local.vpc_id
 
@@ -125,15 +129,26 @@ resource "aws_autoscaling_group" "backend" {
   name = "${local.resource_name}-asg"
   max_size = 10
   min_size = 2
-  health_check_grace_period = 60
+  health_check_grace_period = 180 # 180 better to up the instaces health
   health_check_type = "ELB"
   desired_capacity = 2 # starting of the auto scaling group
-  
+  target_group_arns = [aws_lb_target_group.backend.arn]
+
   launch_template {
     id = aws_launch_template.backend.id
     version = "$Latest"
   }
 
+# rolling update of instances, percentage means avg to instances
+# for 4 instances, 50% percent means 2instances always will during upgrade
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+    triggers = ["launch_template"]
+  }
+  
   vpc_zone_identifier = [local.private_subnet_id]
 
   tag {
@@ -166,5 +181,24 @@ resource "aws_autoscaling_policy" "backend" {
     }
 
     target_value = 70.0
+  }
+}
+
+
+resource "aws_lb_listener_rule" "backend" {
+  listener_arn = data.aws_ssm_parameter.app_alb_listener_arn.value
+  priority     = 100 # low priority will be evaluated first
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    host_header {
+      # backend.app-dev.daws100s.online configured in frontend config 
+      # all frontend instances requests reach to below record and then backend target group will trigger the backend instances
+      values = ["${var.backend_tags.Component}.app-${var.environment}.${var.zone_name}"]
+    }
   }
 }

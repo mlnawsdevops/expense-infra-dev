@@ -1,20 +1,19 @@
 # module for app lb
 
-module "app_alb" {
+module "web_alb" {
   source = "terraform-aws-modules/alb/aws"
 
-  internal = true                # no public access
+  internal = false
   name     = local.resource_name # expense-dev-app-alb
   vpc_id   = local.vpc_id
-  subnets  = local.private_subnet_ids
+  subnets  = local.public_subnet_ids
 
-  security_groups       = [local.app_alb_sg_id]
+  security_groups       = [local.web_alb_sg_id]
   create_security_group = false
   enable_deletion_protection = false
-  
   tags = merge(
     var.common_tags,
-    var.app_alb_tags,
+    var.web_alb_tags,
     {
       Name = local.resource_name
     }
@@ -23,7 +22,7 @@ module "app_alb" {
 
 # terraform aws app lb listener
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = module.app_alb.arn
+  load_balancer_arn = module.web_alb.arn
   port              = "80"
   protocol          = "HTTP"
 
@@ -32,12 +31,29 @@ resource "aws_lb_listener" "http" {
 
     fixed_response {
       content_type = "text/html"
-      message_body = "<h1>Hello, I am from Application LB</h1>"
+      message_body = "<h1>Hello, I am from WEB ALB http</h1>"
       status_code  = "200"
     }
   }
 }
 
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = module.web_alb.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = data.aws_ssm_parameter.https_certificate_arn.value
+
+  default_action { # action means rule
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/html"
+      message_body = "<h1>Hello, I am from WEB ALB https</h1>"
+      status_code  = "200"
+    }
+  }
+}
 
 # creating route53 record for app lb dns name
 module "zone" {
@@ -48,11 +64,11 @@ module "zone" {
 
   records = {
     app_wildcard = {
-      name = "*.app-${var.environment}" # *.app-dev.daws100s.online
+      name = "expense-${var.environment}" # expense-dev.daws100s.online
       type = "A"
       alias = {
-        name    = module.app_alb.dns_name
-        zone_id = module.app_alb.zone_id
+        name    = module.web_alb.dns_name # web loadbalancer name
+        zone_id = module.web_alb.zone_id # web loadbalancer zone_id
       }
       allow_overwrite = true 
     }

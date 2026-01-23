@@ -1,5 +1,9 @@
+variable "zone_name" {
+    default = "daws100s.online"
+}
+
 variable "project_name" {
-    default = "expense"
+  default = "expense"
 }
 
 variable "environment" {
@@ -9,18 +13,12 @@ variable "environment" {
 variable "common_tags" {
     default = {
         Project = "expense"
-        Component = "backend"
         Environment = "dev"
+        Component = "acm"
         Terraform = "true"
     }
 }
 
-variable "backend_tags" {
-    default = {
-        Component = "backend"
-    }
-}
-
-variable "zone_name" {
-  default = "daws100s.online"
+variable "zone_id" {
+  default = "Z02305702LFJSCAA8YV7Q"
 }

@@ -75,7 +75,8 @@ module "zone" {
   create_zone = false   
 
   records = {
-    mysql-dev = {
+    # mysql-dev.daws100s.online database ip address used in backend config in ansible
+    mysql-dev = { 
       type            = "CNAME"
       ttl             = 1
       records         = [module.db.db_instance_address]
